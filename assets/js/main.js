@@ -164,7 +164,29 @@
   function initSideBooking() {
     $$('[data-side-booking]').forEach(function (card) {
       var subject = card.getAttribute('data-subject') || 'Appointment';
-      var state = { day: null, slot: SLOTS_SHORT[1] };
+      var state = { day: null, slot: SLOTS_SHORT[1], doc: '' };
+      var pickBox = $('[data-doc-pick]', card), deptKey = card.getAttribute('data-dept');
+      if (pickBox && deptKey) {
+        var tick = '<span class="chk" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>';
+        var opts = [{ key: '', html: '<span class="ini" style="background:#EAF0FA;color:#2552C4">' + CFG.icons.users + '</span><span><b>First available doctor</b><small>Shortest waiting time</small></span>' }]
+          .concat(DOCTORS.filter(function (d) { return d.dept === deptKey; }).map(function (d) {
+            return { key: d.key, html: (d.img ? '<img src="' + d.img + '" alt="">' : '<span class="ini">' + esc(d.initials) + '</span>') + '<span><b>' + esc(d.name) + '</b><small>' + esc(deptBy(d.dept).name) + '</small></span>' };
+          }));
+        var pre = param('doctor');
+        if (pre && docBy(pre) && docBy(pre).dept === deptKey) state.doc = pre;
+        var pickBtns = opts.map(function (o) {
+          var b = el('button', { type: 'button', class: 'sel' + (o.key === state.doc ? ' active' : ''), 'aria-pressed': o.key === state.doc ? 'true' : 'false' }, o.html + tick);
+          b.addEventListener('click', function () { state.doc = o.key; setActive(pickBtns, b); });
+          pickBox.appendChild(b); return b;
+        });
+        // "Book" buttons on specialist cards pre-select that doctor here
+        $$('[data-pick-doctor]').forEach(function (a) {
+          a.addEventListener('click', function () {
+            var key = a.getAttribute('data-pick-doctor');
+            opts.forEach(function (o, i) { if (o.key === key) { state.doc = key; setActive(pickBtns, pickBtns[i]); } });
+          });
+        });
+      }
       renderDayGrid($('[data-days]', card), 8, function (d) { state.day = d; $('[data-date-label]', card).textContent = d.label; });
       renderSlots($('[data-slots]', card), SLOTS_SHORT, function (t) { state.slot = t; }, 1);
       var phone = $('[data-phone]', card), err = $('[data-error]', card);
@@ -172,7 +194,8 @@
       $('[data-submit]', card).addEventListener('click', function () {
         if (!validPhone(phone.value)) { err.textContent = 'Please enter a valid 10-digit mobile number.'; err.hidden = false; phone.focus(); return; }
         err.hidden = true;
-        var summary = subject + ' · ' + state.day.label + ', ' + state.slot;
+        var dr = docBy(state.doc);
+        var summary = (pickBox ? (dr ? dr.name : 'First available doctor') + ' · ' : '') + subject + ' · ' + state.day.label + ', ' + state.slot;
         $('[data-summary]', ok).textContent = summary;
         $('[data-phone-out]', ok).textContent = '+91 ' + digits(phone.value);
         $('[data-wa]', ok).href = waLink('Hello Al Noor Hospital, I would like to book: ' + summary + '\nMobile: ' + digits(phone.value));
